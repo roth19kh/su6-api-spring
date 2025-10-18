@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: spring-boot-api
+    name: product-web-api
     env: docker
     plan: free
     docker:
@@ -16,5 +16,3 @@ services:
         value: production
     healthCheckPath: /health
     autoDeploy: true
-	
-	
