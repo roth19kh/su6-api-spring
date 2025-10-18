@@ -1,11 +1,8 @@
 package com.setec.controller;
 
-import java.io.File;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.Base64;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -40,32 +37,6 @@ public class MyController {
         this.myConfig = myConfig;
     }
 
-    // Helper method for file upload - FIXED FOR PRODUCTION
-    private String handleFileUpload(MultipartFile file) throws Exception {
-        // Use the current working directory which is writable in Render.com
-        String uploadDir = Paths.get("").toAbsolutePath().toString() + "/static";
-        File dir = new File(uploadDir);
-        
-        // Create directory if it doesn't exist
-        if (!dir.exists()) {
-            boolean created = dir.mkdirs();
-            if (!created) {
-                throw new Exception("Failed to create upload directory: " + uploadDir);
-            }
-        }
-        
-        // Clean filename and generate unique name
-        String originalFileName = Objects.requireNonNull(file.getOriginalFilename());
-        String fileExtension = originalFileName.substring(originalFileName.lastIndexOf("."));
-        String fileName = UUID.randomUUID() + fileExtension;
-        String filePath = Paths.get(uploadDir, fileName).toString();
-
-        // Save the file
-        file.transferTo(new File(filePath));
-        
-        return "/static/" + fileName;
-    }
-
     @GetMapping
     @Operation(summary = "Get all products", description = "Retrieve a list of all products")
     @ApiResponses(value = {
@@ -82,7 +53,7 @@ public class MyController {
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Create a new product", description = "Create a new product with image upload")
+    @Operation(summary = "Create a new product", description = "Create a new product with image upload as base64")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "201", description = "Product created successfully"),
         @ApiResponse(responseCode = "400", description = "Invalid input")
@@ -91,17 +62,26 @@ public class MyController {
             @Parameter(description = "Product data with image file", required = true)
             @ModelAttribute PostProductDAO product) throws Exception {
         
-        String imageUrl = handleFileUpload(product.getFile());
+        String imageBase64 = null;
+        if (product.getFile() != null && !product.getFile().isEmpty()) {
+            // Convert image to base64
+            byte[] imageBytes = product.getFile().getBytes();
+            imageBase64 = Base64.getEncoder().encodeToString(imageBytes);
+        }
 
         Product pro = new Product();
         pro.setName(product.getName());
         pro.setPrice(product.getPrice());
         pro.setQty(product.getQty());
-        pro.setImageUrl(imageUrl);
+        pro.setImageData(imageBase64);
+        pro.setImageUrl("#"); // Placeholder since we're using base64
 
         productRepo.save(pro);
 
-        return ResponseEntity.status(201).body(pro);
+        return ResponseEntity.status(201).body(Map.of(
+            "message", "Product created successfully with base64 image storage",
+            "product", pro
+        ));
     }
 
     @GetMapping("{id}")
@@ -139,7 +119,7 @@ public class MyController {
     }
 
     @DeleteMapping("{id}")
-    @Operation(summary = "Delete product by ID", description = "Delete a specific product and its image file")
+    @Operation(summary = "Delete product by ID", description = "Delete a specific product")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "202", description = "Product deleted successfully"),
         @ApiResponse(responseCode = "404", description = "Product not found")
@@ -149,15 +129,6 @@ public class MyController {
             @PathVariable("id") Integer id) {
         var p = productRepo.findById(id);
         if (p.isPresent()) {
-            // Delete the image file
-            String imagePath = p.get().getImageUrl();
-            if (imagePath != null && !imagePath.isEmpty()) {
-                File imageFile = new File(imagePath.startsWith("/") ? imagePath.substring(1) : imagePath);
-                if (imageFile.exists()) {
-                    imageFile.delete();
-                }
-            }
-            
             productRepo.delete(p.get());
             return ResponseEntity.status(HttpStatus.ACCEPTED)
                     .body(Map.of("Message", "Product id = " + id + " has been deleted"));
@@ -184,18 +155,10 @@ public class MyController {
             update.setQty(product.getQyt()); 
 
             if (product.getFile() != null && !product.getFile().isEmpty()) {
-                // Delete old image
-                String oldImagePath = update.getImageUrl();
-                if (oldImagePath != null && !oldImagePath.isEmpty()) {
-                    File oldImageFile = new File(oldImagePath.startsWith("/") ? oldImagePath.substring(1) : oldImagePath);
-                    if (oldImageFile.exists()) {
-                        oldImageFile.delete();
-                    }
-                }
-                
-                // Upload new image
-                String newImageUrl = handleFileUpload(product.getFile());
-                update.setImageUrl(newImageUrl);
+                // Convert new image to base64
+                byte[] imageBytes = product.getFile().getBytes();
+                String imageBase64 = Base64.getEncoder().encodeToString(imageBytes);
+                update.setImageData(imageBase64);
             }
 
             productRepo.save(update);
@@ -211,19 +174,45 @@ public class MyController {
                 .body(Map.of("message", "Product id = " + id + " not found"));
     }
 
-    // Add endpoint to check file upload directory
-    @GetMapping("/upload-info")
-    @Operation(summary = "Upload directory info", description = "Check file upload directory status")
-    public ResponseEntity<?> uploadInfo() {
-        String uploadDir = Paths.get("").toAbsolutePath().toString() + "/static";
-        File dir = new File(uploadDir);
-        
-        return ResponseEntity.ok(Map.of(
-            "uploadDirectory", uploadDir,
-            "directoryExists", dir.exists(),
-            "directoryWritable", dir.canWrite(),
-            "absolutePath", Paths.get("").toAbsolutePath().toString(),
-            "freeSpace", String.format("%.2f MB", dir.getFreeSpace() / (1024.0 * 1024.0))
+    // Get product image as base64
+    @GetMapping("{id}/image")
+    @Operation(summary = "Get product image", description = "Get product image as base64 data")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Image found"),
+        @ApiResponse(responseCode = "404", description = "Image not found")
+    })
+    public ResponseEntity<?> getProductImage(
+            @Parameter(description = "Product ID", example = "1", required = true)
+            @PathVariable("id") Integer id) {
+        var pro = productRepo.findById(id);
+        if (pro.isPresent() && pro.get().getImageData() != null) {
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                        "imageData", pro.get().getImageData(),
+                        "message", "Base64 image data"
+                    ));
+        }
+        return ResponseEntity.status(404)
+                .body(Map.of("message", "Image not found for product id: " + id));
+    }
+
+    // Create product without image (for testing)
+    @PostMapping("/no-image")
+    @Operation(summary = "Create product without image", description = "Create a new product without image upload")
+    public ResponseEntity<?> createProductWithoutImage(@RequestBody Map<String, Object> productData) {
+        Product pro = new Product();
+        pro.setName((String) productData.get("name"));
+        pro.setPrice(Double.parseDouble(productData.get("price").toString()));
+        pro.setQty(Integer.parseInt(productData.get("qty").toString()));
+        pro.setImageUrl("#");
+        pro.setImageData(null);
+
+        productRepo.save(pro);
+
+        return ResponseEntity.status(201).body(Map.of(
+            "message", "Product created successfully without image",
+            "product", pro
         ));
     }
 }

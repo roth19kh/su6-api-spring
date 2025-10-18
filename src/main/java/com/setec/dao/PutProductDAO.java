@@ -1,21 +1,13 @@
 package com.setec.dao;
 
+import lombok.Data;
 import org.springframework.web.multipart.MultipartFile;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-
-
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
+@Data
 public class PutProductDAO {
-	private Integer id;
-	private String name;
-	private double price;
-	private int qyt;
-	private MultipartFile file;
+    private Integer id;
+    private String name;
+    private Double price;
+    private Integer qyt;
+    private MultipartFile file;
 }
