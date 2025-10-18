@@ -1,9 +1,7 @@
 package com.setec.entities;
 
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
-
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -26,30 +24,23 @@ public class Product {
     @JsonIgnore
     private String imageUrl;
     
-    @Column(columnDefinition = "TEXT") // Store base64 image data
+    @Column(columnDefinition = "TEXT")
     private String imageData;
     
-    @Transient // This field won't be stored in database
-    private String imageBase64;
-    
+    // Remove the @Transient annotation and add proper getter
     public String getFullImageUrl() {
+        // If we have imageData, return a URL to access it
+    	if (this.imageData != null && !this.imageData.isEmpty()) {
+            return "/api/product/" + this.id + "/image-file";
+        }
         if (imageUrl != null && !imageUrl.equals("#")) {
-            return ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString() + imageUrl;
+            return imageUrl;
         }
         return null;
-    }
-    
-    // Getter that returns base64 data for API responses
-    public String getImageBase64() {
-        return this.imageData;
-    }
-    
-    // Setter for base64 data
-    public void setImageBase64(String imageBase64) {
-        this.imageData = imageBase64;
     }
     
     public double amount() {
         return price * qty;
     }
+    
 }

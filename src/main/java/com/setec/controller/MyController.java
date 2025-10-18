@@ -174,9 +174,9 @@ public class MyController {
                 .body(Map.of("message", "Product id = " + id + " not found"));
     }
 
-    // Get product image as base64
+    // Get product image as base64 JSON response
     @GetMapping("{id}/image")
-    @Operation(summary = "Get product image", description = "Get product image as base64 data")
+    @Operation(summary = "Get product image as base64", description = "Get product image as base64 data")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Image found"),
         @ApiResponse(responseCode = "404", description = "Image not found")
@@ -197,22 +197,137 @@ public class MyController {
                 .body(Map.of("message", "Image not found for product id: " + id));
     }
 
+    // Get product image as actual image file
+    @GetMapping(value = "{id}/image-file", produces = {MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE})
+    @Operation(summary = "Get product image file", description = "Get product image as actual image file")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Image file found"),
+        @ApiResponse(responseCode = "404", description = "Image not found")
+    })
+    public ResponseEntity<byte[]> getProductImageFile(
+            @Parameter(description = "Product ID", example = "1", required = true)
+            @PathVariable("id") Integer id) {
+        
+        var pro = productRepo.findById(id);
+        if (pro.isPresent() && pro.get().getImageData() != null) {
+            try {
+                // Decode base64 to byte array
+                byte[] imageBytes = Base64.getDecoder().decode(pro.get().getImageData());
+                
+                // Detect image type
+                String contentType = detectImageType(imageBytes);
+                
+                return ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(contentType))
+                        .body(imageBytes);
+            } catch (Exception e) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+        }
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    }
+
+    // Helper method to detect image type
+    private String detectImageType(byte[] imageBytes) {
+        try {
+            // Simple detection based on magic numbers
+            if (imageBytes.length >= 3 && 
+                imageBytes[0] == (byte) 0xFF && 
+                imageBytes[1] == (byte) 0xD8 && 
+                imageBytes[2] == (byte) 0xFF) {
+                return "image/jpeg";
+            } else if (imageBytes.length >= 8 && 
+                       imageBytes[0] == (byte) 0x89 && 
+                       imageBytes[1] == (byte) 0x50 && 
+                       imageBytes[2] == (byte) 0x4E && 
+                       imageBytes[3] == (byte) 0x47) {
+                return "image/png";
+            } else if (imageBytes.length >= 4 &&
+                       imageBytes[0] == (byte) 0x47 && 
+                       imageBytes[1] == (byte) 0x49 && 
+                       imageBytes[2] == (byte) 0x46 && 
+                       imageBytes[3] == (byte) 0x38) {
+                return "image/gif";
+            }
+        } catch (Exception e) {
+            // Fallback to JPEG
+        }
+        return "image/jpeg"; // Default fallback
+    }
+
     // Create product without image (for testing)
     @PostMapping("/no-image")
     @Operation(summary = "Create product without image", description = "Create a new product without image upload")
     public ResponseEntity<?> createProductWithoutImage(@RequestBody Map<String, Object> productData) {
-        Product pro = new Product();
-        pro.setName((String) productData.get("name"));
-        pro.setPrice(Double.parseDouble(productData.get("price").toString()));
-        pro.setQty(Integer.parseInt(productData.get("qty").toString()));
-        pro.setImageUrl("#");
-        pro.setImageData(null);
+        try {
+            Product pro = new Product();
+            pro.setName((String) productData.get("name"));
+            pro.setPrice(Double.parseDouble(productData.get("price").toString()));
+            pro.setQty(Integer.parseInt(productData.get("qty").toString()));
+            pro.setImageUrl("#");
+            pro.setImageData(null);
 
-        productRepo.save(pro);
+            productRepo.save(pro);
 
-        return ResponseEntity.status(201).body(Map.of(
-            "message", "Product created successfully without image",
-            "product", pro
+            return ResponseEntity.status(201).body(Map.of(
+                "message", "Product created successfully without image",
+                "product", pro
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Invalid product data: " + e.getMessage()));
+        }
+    }
+
+    // Health check endpoint for products
+    @GetMapping("/health")
+    @Operation(summary = "Product API health", description = "Check if Product API is running")
+    public ResponseEntity<?> health() {
+        long productCount = productRepo.count();
+        return ResponseEntity.ok(Map.of(
+            "status", "Product API is running",
+            "totalProducts", productCount,
+            "timestamp", java.time.LocalDateTime.now()
         ));
+    }
+
+    // Get product count
+    @GetMapping("/count")
+    @Operation(summary = "Get product count", description = "Get total number of products")
+    public ResponseEntity<?> getProductCount() {
+        long count = productRepo.count();
+        return ResponseEntity.ok(Map.of(
+            "totalProducts", count,
+            "message", "Total products in database"
+        ));
+    }
+
+    // Search products by price range
+
+    // Update product without image
+    @PutMapping("/{id}/no-image")
+    @Operation(summary = "Update product without image", description = "Update product details without changing image")
+    public ResponseEntity<?> updateProductWithoutImage(
+            @PathVariable("id") Integer id,
+            @RequestBody Map<String, Object> productData) {
+        
+        var p = productRepo.findById(id);
+        if (p.isPresent()) {
+            var update = p.get();
+            update.setName((String) productData.get("name"));
+            update.setPrice(Double.parseDouble(productData.get("price").toString()));
+            update.setQty(Integer.parseInt(productData.get("qty").toString()));
+
+            productRepo.save(update);
+
+            return ResponseEntity.status(HttpStatus.ACCEPTED)
+                    .body(Map.of(
+                            "message", "Product id = " + id + " update successful",
+                            "product", update
+                    ));
+        }
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", "Product id = " + id + " not found"));
     }
 }
