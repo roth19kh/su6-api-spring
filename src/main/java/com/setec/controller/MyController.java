@@ -1,12 +1,20 @@
+// Source code is decompiled from a .class file using FernFlower decompiler (from Intellij IDEA).
 package com.setec.controller;
 
+import com.setec.dao.FileStorageService;
+import com.setec.dao.PostProductDAO;
+import com.setec.dao.PutProductDAO;
+import com.setec.entities.Product;
+import com.setec.repos.ProductRepo;
+import java.io.File;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Base64;
-
+import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,135 +24,106 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import com.setec.config.MyConfig;
-import com.setec.dao.PostProductDAO;
-import com.setec.dao.PutProductDAO;
-import com.setec.entities.Product;
-import com.setec.repos.ProductRepo;
 
 @RestController
-@RequestMapping("/api/product")
+@RequestMapping({"/api/product"})
 public class MyController {
+   @Autowired
+   private ProductRepo productRepo;
+   @Autowired
+   private FileStorageService fileStorageService;
 
-    private final MyConfig myConfig;
+   public MyController() {
+   }
 
-    @Autowired
-    private ProductRepo productRepo;
+   @GetMapping
+   public Object getAll() {
+      List<Product> products = this.productRepo.findAll();
+      return products.size() == 0 ? ResponseEntity.status(404).body(Map.of("message", "product is empty")) : products;
+   }
 
-    MyController(MyConfig myConfig) {
-        this.myConfig = myConfig;
-    }
+   @PostMapping(
+      consumes = {"multipart/form-data"}
+   )
+   public Object postProduct(@ModelAttribute PostProductDAO product) throws Exception {
+      String fileName = this.fileStorageService.storeFile(product.getFile());
+      Product pro = new Product();
+      pro.setName(product.getName());
+      pro.setPrice(product.getPrice());
+      pro.setQty(product.getQty());
+      pro.setImageUrl("/static/" + fileName);
+      this.productRepo.save(pro);
+      return ResponseEntity.status(201).body(pro);
+   }
 
-    @GetMapping
-    public ResponseEntity<?> getAll() {
-        var products = productRepo.findAll();
-        if (products.isEmpty()) {
-            return ResponseEntity.status(404)
-                    .body(Map.of("message", "Product is Empty"));
-        }
-        return ResponseEntity.ok(products);
-    }
+   @GetMapping({"{id}", "id/{id}"})
+   public Object getById(@PathVariable("id") Integer id) {
+      Optional<Product> pro = this.productRepo.findById(id);
+      return pro.isPresent() ? pro.get() : ResponseEntity.status(404).body(Map.of("message", "Product id = " + String.valueOf(id) + " not found"));
+   }
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Object postProduct(@ModelAttribute PostProductDAO product) throws Exception {
-        String imageBase64 = null;
-        
-        // Convert image to base64 instead of saving to file system
-        if (product.getFile() != null && !product.getFile().isEmpty()) {
-            byte[] imageBytes = product.getFile().getBytes();
-            imageBase64 = Base64.getEncoder().encodeToString(imageBytes);
-        }
+   @GetMapping({"name/{name}"})
+   public Object getByName(@PathVariable("name") String name) {
+      List<Product> pro = this.productRepo.findByName(name);
+      return pro.size() > 0 ? pro : ResponseEntity.status(404).body(Map.of("message", "Product name = " + name + " not found"));
+   }
 
-        Product pro = new Product();
-        pro.setName(product.getName());
-        pro.setPrice(product.getPrice());
-        pro.setQty(product.getQty());
-        pro.setImageData(imageBase64); // Store base64 in database
-        pro.setImageUrl("#"); // Placeholder
+   @DeleteMapping({"{id}", "id/{id}"})
+   public Object deleteById(@PathVariable("id") Integer id) {
+      Optional<Product> p = this.productRepo.findById(id);
+      if (p.isPresent()) {
+         this.fileStorageService.deleteFile(((Product)p.get()).getImageUrl());
+         this.productRepo.delete((Product)p.get());
+         return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of("message", "Product id = " + String.valueOf(id) + " has been deleted"));
+      } else {
+         return ResponseEntity.status(404).body(Map.of("message", "Product id = " + String.valueOf(id) + " not found"));
+      }
+   }
 
-        productRepo.save(pro);
+   @PutMapping(
+      consumes = {"multipart/form-data"}
+   )
+   public Object putProduct(@ModelAttribute PutProductDAO product) throws Exception {
+      Integer id = product.getId();
+      Optional<Product> p = this.productRepo.findById(id);
+      if (p.isPresent()) {
+         Product update = (Product)p.get();
+         update.setName(product.getName());
+         update.setPrice(product.getPrice());
+         update.setQty(product.getQyt());
+         if (product.getFile() != null) {
+            this.fileStorageService.deleteFile(update.getImageUrl());
+            String fileName = this.fileStorageService.storeFile(product.getFile());
+            update.setImageUrl("/static/" + fileName);
+         }
 
-        return ResponseEntity.status(201).body(pro);
-    }
+         this.productRepo.save(update);
+         return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of("message", "Product id = " + String.valueOf(id) + " update successful ", "product", update));
+      } else {
+         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Product id = " + String.valueOf(id) + " not found"));
+      }
+   }
 
-    // Get product by ID
-    @GetMapping("{id}")
-    public Object getById(@PathVariable("id") Integer id) {
-        var pro = productRepo.findById(id);
-        if (pro.isPresent()) {
-            return pro.get();
-        }
-        return ResponseEntity.status(404)
-                .body(Map.of("Message", "Product id= " + id + " not found"));
-    }
+   @GetMapping({"/debug/files"})
+   public Object debugFiles() {
+      try {
+         String uploadDir = System.getenv("DATABASE_URL") != null ? "/tmp/static" : "myApp/static";
+         File dir = new File(uploadDir);
+         Map<String, Object> result = new HashMap();
+         result.put("uploadDir", uploadDir);
+         result.put("exists", dir.exists());
+         result.put("isDirectory", dir.isDirectory());
+         if (dir.exists() && dir.isDirectory()) {
+            File[] files = dir.listFiles();
+            result.put("fileCount", files != null ? files.length : 0);
+            result.put("files", files != null ? Arrays.stream(files).map((file) -> {
+               return Map.of("name", file.getName(), "size", file.length(), "url", "https://product-web-api.onrender.com/static/" + file.getName());
+            }).collect(Collectors.toList()) : List.of());
+         }
 
-    // Get product by name
-    @GetMapping("name/{name}")
-    public Object getByName(@PathVariable("name") String name) {
-        List<Product> pro = productRepo.findByName(name);
-        if (pro.size() > 0) {
-            return pro;
-        }
-        return ResponseEntity.status(404)
-                .body(Map.of("message", "Product name " + name + " not found"));
-    }
-
-    // Delete product by ID
-    @DeleteMapping("{id}")
-    public ResponseEntity<?> deleteById(@PathVariable("id") Integer id) {
-        var p = productRepo.findById(id);
-        if (p.isPresent()) {
-            // No file to delete since we're using base64
-            productRepo.delete(p.get());
-            return ResponseEntity.status(HttpStatus.ACCEPTED)
-                    .body(Map.of("Message", "Product id = " + id + " has been deleted"));
-        }
-        return ResponseEntity.status(404)
-                .body(Map.of("Message", "Product id = " + id + " not found"));
-    }
-    
-    //Update 
-    @PutMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Object putProduct(@ModelAttribute PutProductDAO product) throws Exception {
-        Integer id = product.getId();
-        var p = productRepo.findById(id);
-        if(p.isPresent()) {
-            var update = p.get();
-            update.setName(product.getName());
-            update.setPrice(product.getPrice());
-            update.setQty(product.getQyt());
-            
-            // Handle image update with base64
-            if (product.getFile() != null && !product.getFile().isEmpty()) {
-                byte[] imageBytes = product.getFile().getBytes();
-                String imageBase64 = Base64.getEncoder().encodeToString(imageBytes);
-                update.setImageData(imageBase64);
-            }
-            
-            productRepo.save(update);
-            return ResponseEntity.status(HttpStatus.ACCEPTED)
-                    .body(Map.of("message","Product id = "+id+" update successful",
-                            "product",update));
-        }
-        
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(Map.of("Message","Product id = "+id+" not found"));
-    }
-
-    // Get product image as actual image file
-    @GetMapping(value = "{id}/image", produces = {MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE})
-    public ResponseEntity<byte[]> getProductImage(@PathVariable("id") Integer id) {
-        var pro = productRepo.findById(id);
-        if (pro.isPresent() && pro.get().getImageData() != null) {
-            try {
-                byte[] imageBytes = Base64.getDecoder().decode(pro.get().getImageData());
-                return ResponseEntity.ok()
-                        .contentType(MediaType.IMAGE_JPEG)
-                        .body(imageBytes);
-            } catch (Exception e) {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-            }
-        }
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-    }
+         return result;
+      } catch (Exception var5) {
+         return Map.of("error", var5.getMessage());
+      }
+   }
 }
