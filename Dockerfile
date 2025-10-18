@@ -5,14 +5,14 @@ WORKDIR /app
 # Copy source code
 COPY . .
 
-# Build the application
-RUN gradle build -x test --no-daemon
+# Build with annotation processing
+RUN gradle build -x test --no-daemon --build-cache
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Copy the specific JAR file
+# Copy the built JAR file
 COPY --from=build /app/build/libs/*.jar app.jar
 
 # Create a non-root user
