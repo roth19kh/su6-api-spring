@@ -3,8 +3,7 @@ services:
     name: product-web-api
     env: docker
     plan: free
-    docker:
-      dockerfile: Dockerfile
+    dockerfile: Dockerfile
     envVars:
       - key: DATABASE_URL
         value: jdbc:postgresql://dpg-d3fn6bp5pdvs73be510g-a.oregon-postgres.render.com:5432/roth
