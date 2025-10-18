@@ -1,19 +1,18 @@
 package com.setec.dao;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
 import org.springframework.web.multipart.MultipartFile;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
+@Data
+@Schema(description = "Data transfer object for creating a product")
 public class PostProductDAO {
+    
     private String name;
+    
     private Double price;
-    private Integer qty;  // Fixed typo: qyt → qty
+    
+    private Integer qty;
+    
     private MultipartFile file;
 }

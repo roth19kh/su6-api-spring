@@ -23,6 +23,10 @@ dependencies {
     
     runtimeOnly 'org.postgresql:postgresql'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    
+    // ✅ ADD SWAGGER DEPENDENCY HERE
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
+    
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     
     // For test Lombok

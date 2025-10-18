@@ -9,7 +9,6 @@ import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -20,16 +19,24 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
 import com.setec.config.MyConfig;
 import com.setec.dao.PostProductDAO;
 import com.setec.dao.PutProductDAO;
 import com.setec.entities.Product;
 import com.setec.repos.ProductRepo;
-import org.springframework.web.bind.annotation.RequestParam;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/product")
+@Tag(name = "Product API", description = "CRUD operations for product management")
 public class MyController {
 
     private final MyConfig myConfig;
@@ -42,6 +49,11 @@ public class MyController {
     }
 
     @GetMapping
+    @Operation(summary = "Get all products", description = "Retrieve a list of all products")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Products retrieved successfully"),
+        @ApiResponse(responseCode = "404", description = "No products found")
+    })
     public ResponseEntity<?> getAll() {
         var products = productRepo.findAll();
         if (products.isEmpty()) {
@@ -52,14 +64,22 @@ public class MyController {
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Object postProduct(@ModelAttribute PostProductDAO product) throws Exception {
+    @Operation(summary = "Create a new product", description = "Create a new product with image upload")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "201", description = "Product created successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid input")
+    })
+    public Object postProduct(
+            @Parameter(description = "Product data with image file", required = true)
+            @ModelAttribute PostProductDAO product) throws Exception {
+        
         String uploadDir = new File("myApp/static").getAbsolutePath();
         File dir = new File(uploadDir);
         if (!dir.exists()) dir.mkdirs();
 
         var file = product.getFile();
-        String exstention = Objects.requireNonNull(file.getOriginalFilename());
-        String fileName = UUID.randomUUID() + "_" + exstention;
+        String extension = Objects.requireNonNull(file.getOriginalFilename());
+        String fileName = UUID.randomUUID() + "_" + extension;
         String filePath = Paths.get(uploadDir, fileName).toString();
 
         file.transferTo(new File(filePath));
@@ -75,9 +95,15 @@ public class MyController {
         return ResponseEntity.status(201).body(pro);
     }
 
-    // Get product by ID
     @GetMapping("{id}")
-    public Object getById(@PathVariable("id") Integer id) {
+    @Operation(summary = "Get product by ID", description = "Retrieve a specific product by its ID")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Product found"),
+        @ApiResponse(responseCode = "404", description = "Product not found")
+    })
+    public Object getById(
+            @Parameter(description = "Product ID", example = "1", required = true)
+            @PathVariable("id") Integer id) {
         var pro = productRepo.findById(id);
         if (pro.isPresent()) {
             return pro.get();
@@ -86,9 +112,15 @@ public class MyController {
                 .body(Map.of("Message", "Product id= " + id + " not found"));
     }
 
-    // Get product by name
     @GetMapping("name/{name}")
-    public Object getByName(@PathVariable("name") String name) {
+    @Operation(summary = "Get products by name", description = "Search products by name (partial match)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Products found"),
+        @ApiResponse(responseCode = "404", description = "No products found with that name")
+    })
+    public Object getByName(
+            @Parameter(description = "Product name to search for", example = "laptop", required = true)
+            @PathVariable("name") String name) {
         List<Product> pro = productRepo.findByName(name);
         if (pro.size() > 0) {
             return pro;
@@ -97,9 +129,15 @@ public class MyController {
                 .body(Map.of("message", "Product name " + name + " not found"));
     }
 
-    // Delete product by ID
     @DeleteMapping("{id}")
-    public ResponseEntity<?> deleteById(@PathVariable("id") Integer id) {
+    @Operation(summary = "Delete product by ID", description = "Delete a specific product and its image file")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "202", description = "Product deleted successfully"),
+        @ApiResponse(responseCode = "404", description = "Product not found")
+    })
+    public ResponseEntity<?> deleteById(
+            @Parameter(description = "Product ID to delete", example = "1", required = true)
+            @PathVariable("id") Integer id) {
         var p = productRepo.findById(id);
         if (p.isPresent()) {
             new File("myApp/" + p.get().getImageUrl()).delete();
@@ -111,9 +149,15 @@ public class MyController {
                 .body(Map.of("Message", "Product id = " + id + " not found"));
     }
     
-    //Update 
     @PutMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Object putProduct(@ModelAttribute PutProductDAO product) throws Exception {
+    @Operation(summary = "Update product", description = "Update an existing product with optional image change")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "202", description = "Product updated successfully"),
+        @ApiResponse(responseCode = "404", description = "Product not found")
+    })
+    public Object putProduct(
+            @Parameter(description = "Product data for update", required = true)
+            @ModelAttribute PutProductDAO product) throws Exception {
         Integer id = product.getId();
         var p = productRepo.findById(id);
         if (p.isPresent()) {
@@ -123,7 +167,7 @@ public class MyController {
             update.setQty(product.getQyt()); 
 
             if (product.getFile() != null && !product.getFile().isEmpty()) {
-                String uploadDir = new File("myApp/static").getAbsolutePath(); // Fixed missing semicolon
+                String uploadDir = new File("myApp/static").getAbsolutePath();
                 File dir = new File(uploadDir);
                 if (!dir.exists()) dir.mkdirs();
 
@@ -150,6 +194,14 @@ public class MyController {
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Map.of("message", "Product id = " + id + " not found"));
+    }
+
+    // Add a simple test endpoint
+    @GetMapping("/test")
+    @Operation(summary = "Test endpoint", description = "Simple test to verify API is working")
+    @ApiResponse(responseCode = "200", description = "API is working")
+    public String test() {
+        return "🎯 Product API is working! Ready for CRUD operations.";
     }
 }
 
