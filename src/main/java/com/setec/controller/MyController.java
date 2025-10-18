@@ -67,7 +67,7 @@ public class MyController {
         Product pro = new Product();
         pro.setName(product.getName());
         pro.setPrice(product.getPrice());
-        pro.setQty(product.getQyt());
+        pro.setQty(product.getQty());
         pro.setImageUrl("/static/" + fileName);
 
         productRepo.save(pro);
