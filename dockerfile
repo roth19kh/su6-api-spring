@@ -1,16 +1,27 @@
 # Build stage
 FROM gradle:7.4.2-jdk17 AS build
 WORKDIR /app
+
+# Copy gradle files first to cache dependencies
 COPY build.gradle .
+COPY settings.gradle .
+COPY gradle.properties .
+COPY gradlew .
+COPY gradle/wrapper/gradle-wrapper.jar gradle/wrapper/
+COPY gradle/wrapper/gradle-wrapper.properties gradle/wrapper/
+
+# Download dependencies first (this layer will be cached)
+RUN gradle dependencies --no-daemon
+
+# Copy source code
 COPY src ./src
-RUN gradle build -x test --no-daemon
+
+# Build the application
+RUN gradle build -x test --no-daemon --stacktrace
 
 # Runtime stage
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
-
-# Install waiting script
-RUN apk add --no-cache postgresql-client
 
 # Copy the built JAR file
 COPY --from=build /app/build/libs/*.jar app.jar
@@ -20,9 +31,5 @@ RUN addgroup -S spring && adduser -S spring -G spring
 USER spring
 
 EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
