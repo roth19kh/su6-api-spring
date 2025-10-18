@@ -8,6 +8,6 @@ public class PutProductDAO {
     private Integer id;
     private String name;
     private Double price;
-    private Integer qyt;
+    private Integer qyt; // Make sure this matches what you're using
     private MultipartFile file;
 }

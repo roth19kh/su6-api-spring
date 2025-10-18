@@ -19,7 +19,7 @@ public class Product {
     private Integer id;
     private String name;
     private double price;
-    private int qty;
+    private Integer qty;
     
     @JsonIgnore
     private String imageUrl;
