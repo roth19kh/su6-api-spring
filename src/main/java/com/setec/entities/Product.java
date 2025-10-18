@@ -21,12 +21,12 @@ public class Product {
     
     private String imageUrl;
     
-    @Column(columnDefinition = "TEXT") // For storing base64
+    @Column(columnDefinition = "TEXT") // Add this field for base64 storage
     private String imageData;
     
     public String getFullImageUrl() {
         if (this.imageData != null && !this.imageData.isEmpty()) {
-            return "/api/product/" + this.id + "/image-file";
+            return "/api/product/" + this.id + "/image";
         }
         if (imageUrl != null && !imageUrl.equals("#")) {
             return imageUrl;
