@@ -11,14 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.setec.config.MyConfig;
 import com.setec.dao.PostProductDAO;
@@ -28,8 +22,6 @@ import com.setec.repos.ProductRepo;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -46,6 +38,32 @@ public class MyController {
 
     MyController(MyConfig myConfig) {
         this.myConfig = myConfig;
+    }
+
+    // Helper method for file upload - FIXED FOR PRODUCTION
+    private String handleFileUpload(MultipartFile file) throws Exception {
+        // Use the current working directory which is writable in Render.com
+        String uploadDir = Paths.get("").toAbsolutePath().toString() + "/static";
+        File dir = new File(uploadDir);
+        
+        // Create directory if it doesn't exist
+        if (!dir.exists()) {
+            boolean created = dir.mkdirs();
+            if (!created) {
+                throw new Exception("Failed to create upload directory: " + uploadDir);
+            }
+        }
+        
+        // Clean filename and generate unique name
+        String originalFileName = Objects.requireNonNull(file.getOriginalFilename());
+        String fileExtension = originalFileName.substring(originalFileName.lastIndexOf("."));
+        String fileName = UUID.randomUUID() + fileExtension;
+        String filePath = Paths.get(uploadDir, fileName).toString();
+
+        // Save the file
+        file.transferTo(new File(filePath));
+        
+        return "/static/" + fileName;
     }
 
     @GetMapping
@@ -73,22 +91,13 @@ public class MyController {
             @Parameter(description = "Product data with image file", required = true)
             @ModelAttribute PostProductDAO product) throws Exception {
         
-        String uploadDir = new File("myApp/static").getAbsolutePath();
-        File dir = new File(uploadDir);
-        if (!dir.exists()) dir.mkdirs();
-
-        var file = product.getFile();
-        String extension = Objects.requireNonNull(file.getOriginalFilename());
-        String fileName = UUID.randomUUID() + "_" + extension;
-        String filePath = Paths.get(uploadDir, fileName).toString();
-
-        file.transferTo(new File(filePath));
+        String imageUrl = handleFileUpload(product.getFile());
 
         Product pro = new Product();
         pro.setName(product.getName());
         pro.setPrice(product.getPrice());
         pro.setQty(product.getQty());
-        pro.setImageUrl("/static/" + fileName);
+        pro.setImageUrl(imageUrl);
 
         productRepo.save(pro);
 
@@ -140,7 +149,15 @@ public class MyController {
             @PathVariable("id") Integer id) {
         var p = productRepo.findById(id);
         if (p.isPresent()) {
-            new File("myApp/" + p.get().getImageUrl()).delete();
+            // Delete the image file
+            String imagePath = p.get().getImageUrl();
+            if (imagePath != null && !imagePath.isEmpty()) {
+                File imageFile = new File(imagePath.startsWith("/") ? imagePath.substring(1) : imagePath);
+                if (imageFile.exists()) {
+                    imageFile.delete();
+                }
+            }
+            
             productRepo.delete(p.get());
             return ResponseEntity.status(HttpStatus.ACCEPTED)
                     .body(Map.of("Message", "Product id = " + id + " has been deleted"));
@@ -167,20 +184,18 @@ public class MyController {
             update.setQty(product.getQyt()); 
 
             if (product.getFile() != null && !product.getFile().isEmpty()) {
-                String uploadDir = new File("myApp/static").getAbsolutePath();
-                File dir = new File(uploadDir);
-                if (!dir.exists()) dir.mkdirs();
-
-                var file = product.getFile();
-                String extension = Objects.requireNonNull(file.getOriginalFilename());
-                String fileName = UUID.randomUUID() + "-" + extension;
-                String filePath = Paths.get(uploadDir, fileName).toString();
-
-                File oldFile = new File("myApp" + update.getImageUrl());
-                if (oldFile.exists()) oldFile.delete();
-
-                file.transferTo(new File(filePath));
-                update.setImageUrl("/static/" + fileName);
+                // Delete old image
+                String oldImagePath = update.getImageUrl();
+                if (oldImagePath != null && !oldImagePath.isEmpty()) {
+                    File oldImageFile = new File(oldImagePath.startsWith("/") ? oldImagePath.substring(1) : oldImagePath);
+                    if (oldImageFile.exists()) {
+                        oldImageFile.delete();
+                    }
+                }
+                
+                // Upload new image
+                String newImageUrl = handleFileUpload(product.getFile());
+                update.setImageUrl(newImageUrl);
             }
 
             productRepo.save(update);
@@ -196,36 +211,19 @@ public class MyController {
                 .body(Map.of("message", "Product id = " + id + " not found"));
     }
 
-    // Add a simple test endpoint
-    @GetMapping("/test")
-    @Operation(summary = "Test endpoint", description = "Simple test to verify API is working")
-    @ApiResponse(responseCode = "200", description = "API is working")
-    public String test() {
-        return "🎯 Product API is working! Ready for CRUD operations.";
+    // Add endpoint to check file upload directory
+    @GetMapping("/upload-info")
+    @Operation(summary = "Upload directory info", description = "Check file upload directory status")
+    public ResponseEntity<?> uploadInfo() {
+        String uploadDir = Paths.get("").toAbsolutePath().toString() + "/static";
+        File dir = new File(uploadDir);
+        
+        return ResponseEntity.ok(Map.of(
+            "uploadDirectory", uploadDir,
+            "directoryExists", dir.exists(),
+            "directoryWritable", dir.canWrite(),
+            "absolutePath", Paths.get("").toAbsolutePath().toString(),
+            "freeSpace", String.format("%.2f MB", dir.getFreeSpace() / (1024.0 * 1024.0))
+        ));
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
