@@ -14,5 +14,7 @@ services:
         value: ArTLhsMDelJWYbabV93WhrQI60g5rZUL
       - key: SPRING_PROFILES_ACTIVE
         value: production
+      - key: JAVA_OPTS
+        value: -Xmx256m -Xss512k -Dserver.port=$PORT
     healthCheckPath: /health
     autoDeploy: true
