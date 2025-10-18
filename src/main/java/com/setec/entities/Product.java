@@ -1,7 +1,5 @@
 package com.setec.entities;
 
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -19,18 +17,15 @@ public class Product {
     private Integer id;
     private String name;
     private double price;
-    private Integer qty;
+    private int qty;
     
-    @JsonIgnore
     private String imageUrl;
     
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT") // For storing base64
     private String imageData;
     
-    // Remove the @Transient annotation and add proper getter
     public String getFullImageUrl() {
-        // If we have imageData, return a URL to access it
-    	if (this.imageData != null && !this.imageData.isEmpty()) {
+        if (this.imageData != null && !this.imageData.isEmpty()) {
             return "/api/product/" + this.id + "/image-file";
         }
         if (imageUrl != null && !imageUrl.equals("#")) {
@@ -42,5 +37,4 @@ public class Product {
     public double amount() {
         return price * qty;
     }
-    
 }
