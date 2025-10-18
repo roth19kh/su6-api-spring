@@ -1,8 +1,11 @@
 package com.setec.controller;
 
+import java.io.File;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
-import java.util.Base64;
+import java.util.Objects;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -47,20 +50,22 @@ public class MyController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Object postProduct(@ModelAttribute PostProductDAO product) throws Exception {
-        String imageBase64 = null;
-        
-        // Convert image to base64 instead of saving to file system
-        if (product.getFile() != null && !product.getFile().isEmpty()) {
-            byte[] imageBytes = product.getFile().getBytes();
-            imageBase64 = Base64.getEncoder().encodeToString(imageBytes);
-        }
+        String uploadDir = new File("myApp/static").getAbsolutePath();
+        File dir = new File(uploadDir);
+        if (!dir.exists()) dir.mkdirs();
+
+        var file = product.getFile();
+        String exstention = Objects.requireNonNull(file.getOriginalFilename());
+        String fileName = UUID.randomUUID() + "_" + exstention;
+        String filePath = Paths.get(uploadDir, fileName).toString();
+
+        file.transferTo(new File(filePath));
 
         Product pro = new Product();
         pro.setName(product.getName());
         pro.setPrice(product.getPrice());
         pro.setQty(product.getQty());
-        pro.setImageData(imageBase64); // Store base64 in database
-        pro.setImageUrl("#"); // Placeholder
+        pro.setImageUrl("/static/" + fileName);
 
         productRepo.save(pro);
 
@@ -94,7 +99,7 @@ public class MyController {
     public ResponseEntity<?> deleteById(@PathVariable("id") Integer id) {
         var p = productRepo.findById(id);
         if (p.isPresent()) {
-            // No need to delete file since we're using base64 storage
+            new File("myApp/" + p.get().getImageUrl()).delete();
             productRepo.delete(p.get());
             return ResponseEntity.status(HttpStatus.ACCEPTED)
                     .body(Map.of("Message", "Product id = " + id + " has been deleted"));
@@ -103,7 +108,7 @@ public class MyController {
                 .body(Map.of("Message", "Product id = " + id + " not found"));
     }
     
-    // Update product
+    //Update 
     @PutMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Object putProduct(@ModelAttribute PutProductDAO product) throws Exception {
         Integer id = product.getId();
@@ -112,14 +117,7 @@ public class MyController {
             var update = p.get();
             update.setName(product.getName());
             update.setPrice(product.getPrice());
-            update.setQty(product.getQyt());
-
-            // Handle image update with base64
-            if (product.getFile() != null && !product.getFile().isEmpty()) {
-                byte[] imageBytes = product.getFile().getBytes();
-                String imageBase64 = Base64.getEncoder().encodeToString(imageBytes);
-                update.setImageData(imageBase64);
-            }
+            update.setQty(product.getQyt()); // Fixed: changed getQty() to setQty()
             
             productRepo.save(update);
             return ResponseEntity.status(HttpStatus.ACCEPTED)
@@ -129,38 +127,5 @@ public class MyController {
         
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Map.of("Message","Product id = "+id+" not found"));
-    }
-
-    // Get product image as base64
-    @GetMapping("{id}/image")
-    public ResponseEntity<?> getProductImage(@PathVariable("id") Integer id) {
-        var pro = productRepo.findById(id);
-        if (pro.isPresent() && pro.get().getImageData() != null) {
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
-                        "imageData", pro.get().getImageData(),
-                        "message", "Base64 image data"
-                    ));
-        }
-        return ResponseEntity.status(404)
-                .body(Map.of("message", "Image not found for product id: " + id));
-    }
-
-    // Get product image as actual image file
-    @GetMapping(value = "{id}/image-file", produces = {MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE})
-    public ResponseEntity<byte[]> getProductImageFile(@PathVariable("id") Integer id) {
-        var pro = productRepo.findById(id);
-        if (pro.isPresent() && pro.get().getImageData() != null) {
-            try {
-                byte[] imageBytes = Base64.getDecoder().decode(pro.get().getImageData());
-                return ResponseEntity.ok()
-                        .contentType(MediaType.IMAGE_JPEG) // or detect type
-                        .body(imageBytes);
-            } catch (Exception e) {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-            }
-        }
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
 }
