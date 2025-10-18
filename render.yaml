@@ -3,15 +3,7 @@ services:
     name: product-web-api
     env: docker
     plan: free
-    dockerfile: Dockerfile
-    envVars:
-      - key: DATABASE_URL
-        value: jdbc:postgresql://dpg-d3fn6bp5pdvs73be510g-a.oregon-postgres.render.com:5432/roth
-      - key: DATABASE_USERNAME
-        value: roth_user
-      - key: DATABASE_PASSWORD
-        value: ArTLhsMDelJWYbabV93WhrQI60g5rZUL
-      - key: SPRING_PROFILES_ACTIVE
-        value: production
+    docker:
+      dockerfile: Dockerfile
     healthCheckPath: /health
     autoDeploy: true
