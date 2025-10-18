@@ -27,11 +27,10 @@ public class FileStorageService {
 
       String originalFileName = file.getOriginalFilename();
       String extension = originalFileName.substring(originalFileName.lastIndexOf("."));
-      String var10000 = String.valueOf(UUID.randomUUID());
-      String fileName = var10000 + extension;
+      String fileName = UUID.randomUUID() + extension;
       Path filePath = Paths.get(uploadDir, fileName);
       file.transferTo(filePath.toFile());
-      System.out.println("💾 File saved: " + String.valueOf(filePath.toAbsolutePath()));
+      System.out.println("💾 File saved: " + filePath.toAbsolutePath());
       return fileName;
    }
 
