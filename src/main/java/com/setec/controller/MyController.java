@@ -55,8 +55,10 @@ public class MyController {
         if (!dir.exists()) dir.mkdirs();
 
         var file = product.getFile();
-        String exstention = Objects.requireNonNull(file.getOriginalFilename());
-        String fileName = UUID.randomUUID() + "_" + exstention;
+        String extension = Objects.requireNonNull(file.getOriginalFilename());
+        // Shorter UUID - take first 8 characters only
+        String shortUuid = UUID.randomUUID().toString().substring(0, 8);
+        String fileName = shortUuid + "_" + extension;
         String filePath = Paths.get(uploadDir, fileName).toString();
 
         file.transferTo(new File(filePath));
@@ -117,7 +119,7 @@ public class MyController {
             var update = p.get();
             update.setName(product.getName());
             update.setPrice(product.getPrice());
-            update.setQty(product.getQyt()); // Fixed: changed getQty() to setQty()
+            update.setQty(product.getQyt());
             
             productRepo.save(update);
             return ResponseEntity.status(HttpStatus.ACCEPTED)
