@@ -4,13 +4,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import java.io.File;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @PostConstruct
+    @PostConstruct // Fixed: using jakarta.annotation instead of javax.annotation
     public void init() {
         System.out.println("📍 WebConfig initialized - static file serving enabled");
     }
