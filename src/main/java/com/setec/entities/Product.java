@@ -19,7 +19,6 @@ public class Product {
     private String imageUrl;
 
     public String getFullImageUrl() {
-        // Fixed: Use hardcoded URL for Render.com
         return "https://su6-api-spring.onrender.com" + this.imageUrl;
     }
 
