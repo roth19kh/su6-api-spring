@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -82,6 +83,23 @@ public class MyController {
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of("message", "Product id = " + String.valueOf(id) + " update successful ", "product", update));
         } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Product id = " + String.valueOf(id) + " not found"));
+        }
+    }
+
+    // ADD THIS ONE DEBUG ENDPOINT TO CHECK FILES
+    @GetMapping("/check-files")
+    public Object checkFiles() {
+        try {
+            String uploadDir = "/tmp/myApp/static";
+            File dir = new File(uploadDir);
+            Map<String, Object> result = Map.of(
+                "uploadDir", uploadDir,
+                "dirExists", dir.exists(),
+                "fileCount", dir.exists() ? (dir.listFiles() != null ? dir.listFiles().length : 0) : 0
+            );
+            return result;
+        } catch (Exception e) {
+            return Map.of("error", e.getMessage());
         }
     }
 }
