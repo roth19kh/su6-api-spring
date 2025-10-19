@@ -1,3 +1,4 @@
+// Source code is decompiled from a .class file using FernFlower decompiler (from Intellij IDEA).
 package com.setec.dao;
 
 import java.io.File;
@@ -22,15 +23,16 @@ public class FileStorageService {
       File dir = new File(uploadDir);
       if (!dir.exists()) {
          boolean created = dir.mkdirs();
-         System.out.println("📁 Directory created: " + created + " at " + dir.getAbsolutePath());
+         System.out.println("\ud83d\udcc1 Directory created: " + created + " at " + dir.getAbsolutePath());
       }
 
       String originalFileName = file.getOriginalFilename();
       String extension = originalFileName.substring(originalFileName.lastIndexOf("."));
-      String fileName = UUID.randomUUID() + extension;
+      String var10000 = String.valueOf(UUID.randomUUID());
+      String fileName = var10000 + extension;
       Path filePath = Paths.get(uploadDir, fileName);
       file.transferTo(filePath.toFile());
-      System.out.println("💾 File saved: " + filePath.toAbsolutePath());
+      System.out.println("\ud83d\udcbe File saved: " + String.valueOf(filePath.toAbsolutePath()));
       return fileName;
    }
 
@@ -40,7 +42,7 @@ public class FileStorageService {
          String fileName = imageUrl.replace("/static/", "");
          Path filePath = Paths.get(uploadDir, fileName);
          boolean deleted = filePath.toFile().delete();
-         System.out.println("🗑️ File deleted: " + deleted + " - " + fileName);
+         System.out.println("\ud83d\uddd1️ File deleted: " + deleted + " - " + fileName);
          return deleted;
       } catch (Exception var6) {
          System.out.println("❌ Error deleting file: " + var6.getMessage());
